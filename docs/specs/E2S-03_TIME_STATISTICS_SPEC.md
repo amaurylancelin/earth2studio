@@ -1,10 +1,14 @@
-# Earth2Studio Time Statistics
+# E2S-03: Earth2Studio Time Statistics
+
+## Purpose
 
 Declare temporal quantities in variable labels, and have data sources produce
 them. Native data sources own temporal aggregation; `fetch_data` forwards supported
 labels and preserves their metadata. Sampling and reduction belong to the source.
 
-## Declarations and Ownership
+## Contract
+
+### Declarations and Ownership
 
 Qualified variable labels identify temporal quantities unambiguously:
 
@@ -24,7 +28,7 @@ support and return them reduced (see Source Responsibilities). `time_statistics`
 owns modifier normalization, window planning, metadata, and block reductions.
 `earth2studio.data.utils` provides shared request planning and window reduction.
 
-## Windows
+### Windows
 
 For valid time `T`, intervals are half-open and **right-closed**: a window ending
 at `T` includes the sample stamped `T` and excludes the one stamped at its start.
@@ -48,7 +52,7 @@ unsupported: specify an explicit number of days or hours instead (for example,
 calendar approximations; use lowercase `m` for minutes. NumPy month/year timedeltas
 are also rejected as source cadences.
 
-### Accumulations and Means of Instantaneous Fields
+#### Accumulations and Means of Instantaneous Fields
 
 Accumulations and mean rates are stamped at the **end** of their period: hourly
 ARCO-ERA5 `tp`, `ttr`, `ro` and `sf` and HRRR forecast `tp` hold `(t - 1h, t]` at
@@ -70,7 +74,7 @@ Running buckets that reset periodically (GFS `tp`) cannot be summed: the buckets
 overlap, so `tp:sum:Nh` double counts; use `tp06`. Each affected source states this
 in its `Temporal statistics:` note.
 
-### Calendar-Day Means: FuXi-S2S
+#### Calendar-Day Means: FuXi-S2S
 
 FuXi-S2S labels days by **starting midnight**, consumes two consecutive daily means,
 and predicts the next. All 76 channels declare means with these hourly windows:
@@ -91,10 +95,10 @@ Preserve start-of-day timestamps and one-day lead increments. Substituting
 `mean:24h` would select the preceding day. The source must sample hourly; a source
 storing these daily means returns them under the same labels without reducing again.
 
-## Statistics of Model Outputs
+### Statistics of Model Outputs
 
 `Pipeline` can reduce a stream over lead time with `LeadWindow` (see
-[EXECUTION_CONTRACT_SPEC.md](EXECUTION_CONTRACT_SPEC.md#lead-time-reductions)).
+[E2S-11](E2S-11_EXECUTION_CONTRACT_SPEC.md#lead-time-reductions)).
 The window ending at lead `e` is the right-closed `(e - window, e]`, so its
 output at valid time `T` is the qualified label's statistic ending at `T`.
 `compose_time_statistic(label, method, window, delta_t)` gives that label for
@@ -103,7 +107,7 @@ frames published every `delta_t`:
 | Frame label | Reduction | Result |
 | --- | --- | --- |
 | `t2m` (instantaneous) | `mean` over `7d` | `t2m:mean:7d` |
-| `t2m:mean:-1h:23h` (daily, FuXi-S2S) | `mean` over `30days` | `t2m:mean:-697h:+23h` |
+| `t2m:mean:-1h:23h` (daily mean) | `mean` over `30days` | `t2m:mean:-697h:+23h` |
 | `tp06:sum:6h` | `sum` over `24h` | `tp06:sum:1d` |
 
 A qualified frame composes only when its method matches and its own window
@@ -115,7 +119,7 @@ others in the largest unit dividing them (`-697h`); `time_statistic_metadata`
 normalizes either spelling to the same modifier, so compare labels through it
 rather than as strings.
 
-## Source Responsibilities
+### Source Responsibilities
 
 A source that supports a temporal quantity accepts its qualified label in
 `variable`, like any other variable, and:
@@ -147,7 +151,7 @@ An absent lexicon declaration means no native support. `fetch_data` discovers
 support through the lexicon (and through wrapped/component sources) and rejects
 unsupported methods before fetching.
 
-## Planning and Reduction
+### Planning and Reduction
 
 Sources that reduce instantaneous samples use the shared primitives:
 
@@ -167,7 +171,7 @@ values outside the window and rejecting missing or duplicate required coordinate
 It selects `lead_time` when present, otherwise `time`; callers may override the
 dimension. Xarray preserves NumPy, CuPy, or Dask execution without implicit transfers.
 
-### Native source request pipeline
+#### Native source request pipeline
 
 Two functions in `earth2studio.data.utils` support the source's own request model:
 
@@ -230,7 +234,7 @@ a statistic method. The reduction does not use a cadence, window or expected cou
 source plans the coordinates. Means are sample-weighted, not duration-weighted.
 Sources propagate fetching failures rather than reduce a partial window.
 
-### Implemented source capabilities
+#### Implemented source capabilities
 
 All sources below declare `("mean", "sum", "min", "max")` on their lexicon.
 
@@ -267,7 +271,7 @@ Native sources reduce through the registry, so a registered statistic works once
 source lists its name in the lexicon's `TIME_STATISTICS`. Standalone
 `apply_time_statistic` also accepts registered statistics.
 
-## Metadata and Scope
+### Metadata and Scope
 
 `time_statistic_metadata()` returns normalized modifier, method, window, offsets,
 and interval closure. Durations remain `np.timedelta64` until serialization.
@@ -285,7 +289,7 @@ serialization. Record CF-compatible time bounds and `cell_methods` when supporte
 Irregular-cadence inference, cross-variable diagnostics, and fused GPU kernels are
 out of scope. The native helpers operate on NumPy fields.
 
-## Verification
+### Verification
 
 Keep one mocked statistics test per source (extend its existing call mock when
 present). Mock backend I/O, retaining real parsing, planning, validation, and
